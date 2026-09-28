@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditoria - Panel de Administración</title>
+    <!-- Tailwind CSS por CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 font-sans min-h-screen flex">
+
+    <section id="pantalla-login" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950 p-4">
+        <form onsubmit="iniciarSesion(event)" class="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-2xl">
+            <h1 class="text-xl font-bold text-amber-400 mb-1">Auditoria</h1>
+            <p class="text-sm text-gray-400 mb-6">Inicia sesión para continuar</p>
+            <label class="block text-xs text-gray-400 mb-1" for="login-nombre">Nombre</label>
+            <input id="login-nombre" required autocomplete="username" class="w-full bg-gray-800 border border-gray-700 px-3 py-2 rounded-lg text-sm text-white mb-4 focus:outline-none focus:border-amber-400">
+            <label class="block text-xs text-gray-400 mb-1" for="login-contrasena">Contraseña</label>
+            <input id="login-contrasena" type="password" required autocomplete="current-password" class="w-full bg-gray-800 border border-gray-700 px-3 py-2 rounded-lg text-sm text-white mb-4 focus:outline-none focus:border-amber-400">
+            <p id="login-error" class="hidden text-sm text-rose-400 mb-4"></p>
+            <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-gray-950 font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">Iniciar sesión</button>
+        </form>
+    </section>
+
+    <div id="app-content" class="hidden flex w-full min-h-screen">
+
+    <!-- Sidebar de Navegación -->
+    <aside class="w-64 bg-gray-900 border-r border-gray-800 p-6 flex flex-col justify-between">
+        <div>
+            <!-- LOGOTIPO -->
+            <div class="flex items-center gap-3 mb-8 border-b border-gray-800 pb-6">
+                <div class="-ml-1">
+                    <h1 id="usuario-nombre" class="text-lg font-bold text-amber-400 tracking-tight leading-tight">Auditoria</h1>
+                    <span class="text-[10px] text-gray-500 tracking-wider uppercase">Data Service</span>
+                </div>
+            </div>
+            
+            <nav class="space-y-2">
+                <!-- Nota cómo cambiamos 'obtener_productos' por solo 'productos' -->
+                <button onclick="cambiarSeccion('productos', 'productos', this)" class="nav-btn w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium bg-amber-500 text-gray-950 font-semibold transition-colors cursor-pointer">Productos</button>
+                <button onclick="cambiarSeccion('clientes', 'clientes', this)" class="nav-btn w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white transition-colors cursor-pointer">Clientes</button>
+                <button id="nav-usuarios" onclick="cambiarSeccion('usuarios', 'usuarios', this)" class="nav-btn w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white transition-colors cursor-pointer">Usuarios</button>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Contenido Principal -->
+    <main class="flex-1 p-8 overflow-y-auto">
+        <header class="flex justify-between items-center mb-8 pb-4 border-b border-gray-800">
+            <h2 id="titulo-seccion" class="text-2xl font-semibold capitalize">
+                Gestión de Productos
+            </h2>
+
+            <div class="flex items-center gap-3">
+                <span id="rol-usuario" class="text-xs text-gray-400"></span>
+                <button onclick="cerrarSesion()" class="text-xs text-rose-400 hover:text-rose-300 cursor-pointer">Cerrar sesión</button>
+            </div>
+            
+            <!-- Barra de Búsqueda -->
+            <div class="flex gap-2">
+                <input 
+                    type="text" 
+                    id="input-buscar" 
+                    onkeyup="buscarEnTabla()"
+                    placeholder="Filtrar registros..." 
+                    class="bg-gray-900 border border-gray-800 px-4 py-2 rounded-lg text-sm focus:outline-none focus:border-amber-400"
+                >
+                <button 
+                    onclick="buscarEnTabla()"
+                    class="bg-amber-500 hover:bg-amber-600 text-gray-950 px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                >
+                    Buscar
+                </button>
+            </div>
+        </header>
+
+        <!-- Botones de Acción -->
+        <div id="acciones" class="mb-6 flex gap-4">
+            <button id="btn-crear" onclick="abrirModal('crear')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center gap-2">
+                <span>+</span> Crear Nuevo Registro
+            </button>
+            <button id="btn-respaldo" onclick="crearRespaldoLocal()" class="hidden bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer">
+                Descargar respaldo
+            </button>
+        </div>
+
+        <!-- Tabla de Datos -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-xl">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead id="tabla-cabecera">
+                        <!-- Se llena dinámicamente -->
+                    </thead>
+                    <tbody id="tabla-cuerpo" class="divide-y divide-gray-800 text-sm">
+                        <!-- Se llena dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    </div>
+
+    <!-- Modal Dinámico (Crear / Editar) -->
+    <div id="modal-form" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 id="modal-titulo" class="text-lg font-bold text-amber-400 mb-4 capitalize">Registro</h3>
+            <div id="modal-inputs" class="space-y-3 mb-6">
+                <!-- Los inputs se generan aquí con JavaScript -->
+            </div>
+            <div class="flex justify-end gap-3 mt-6 border-t border-gray-800 pt-4">
+                <button onclick="cerrarModal()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm cursor-pointer transition-colors">Cancelar</button>
+                <button onclick="guardarDatosModal()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-gray-950 font-semibold rounded-lg text-sm cursor-pointer transition-colors">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let seccionActual = "productos";
+        let endpointActual = "productos";
+        let indiceEdicionActual = null;
+        let datosActuales = [];
+        let rolActual = null;
+        let usuarioActual = null;
+
+        function esAdministrador() {
+            return rolActual === 'Admin' || rolActual === 'Administrador';
+        }
+
+        function puedeEscribir() {
+            if (rolActual === 'Capturista') {
+                return endpointActual === 'productos' || endpointActual === 'clientes';
+            }
+            return esAdministrador() && endpointActual === 'usuarios';
+        }
+
+        function puedeVerSeccion(endpoint) {
+            return endpoint === 'productos' || endpoint === 'clientes' || (endpoint === 'usuarios' && esAdministrador());
+        }
+
+        function puedeEliminarFila(row) {
+            if (!puedeEscribir()) return false;
+            if (endpointActual !== 'usuarios') return true;
+
+            const idFila = Number(row.id_usuario);
+            const idActual = Number(usuarioActual?.id_usuario);
+            const rolFila = String(row.rol || '').trim().toLowerCase();
+
+            return idFila !== idActual && rolFila !== 'admin' && rolFila !== 'administrador';
+        }
+
+        function actualizarPermisos() {
+            document.getElementById('rol-usuario').textContent = `Rol: ${rolActual}`;
+            document.getElementById('nav-usuarios').classList.toggle('hidden', !esAdministrador());
+            document.getElementById('btn-crear').classList.toggle('hidden', !puedeEscribir());
+            document.getElementById('btn-respaldo').classList.toggle('hidden', !esAdministrador());
+            renderizarTabla(datosActuales);
+        }
+
+        async function iniciarSesion(event) {
+            event.preventDefault();
+            const error = document.getElementById('login-error');
+            error.classList.add('hidden');
+
+            try {
+                const response = await fetch('http://localhost:3000/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nombre: document.getElementById('login-nombre').value,
+                        contrasena: document.getElementById('login-contrasena').value
+                    })
+                });
+                const usuario = await response.json();
+                if (!response.ok) {
+                    throw new Error(usuario.error || 'No se pudo iniciar sesión');
+                }
+
+                localStorage.setItem('usuarioSesion', JSON.stringify(usuario));
+                mostrarAplicacion(usuario);
+            } catch (loginError) {
+                error.textContent = loginError.message;
+                error.classList.remove('hidden');
+            }
+        }
+
+        function mostrarAplicacion(usuario) {
+            usuarioActual = usuario;
+            rolActual = usuario.rol;
+            document.getElementById('usuario-nombre').textContent = usuario.nombre || 'Auditoria';
+            document.getElementById('pantalla-login').classList.add('hidden');
+            document.getElementById('app-content').classList.remove('hidden');
+            actualizarPermisos();
+            cargarDatosDesdeServidor();
+        }
+
+        function cerrarSesion() {
+            localStorage.removeItem('usuarioSesion');
+            rolActual = null;
+            document.getElementById('app-content').classList.add('hidden');
+            document.getElementById('pantalla-login').classList.remove('hidden');
+            document.getElementById('login-contrasena').value = '';
+        }
+
+        // ==========================================
+        // FUNCIONES DE CARGA Y RENDERIZADO DE TABLA
+        // ==========================================
+        async function cargarDatosDesdeServidor() {
+            try {
+                const response = await fetch(`http://localhost:3000/api/${endpointActual}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || "Error interno del servidor backend");
+                }
+
+                datosActuales = Array.isArray(data) ? data : [];
+                renderizarTabla(datosActuales);
+                
+            } catch (error) {
+                console.error("Error al cargar datos:", error);
+                document.getElementById('tabla-cabecera').innerHTML = "";
+                document.getElementById('tabla-cuerpo').innerHTML = `
+                    <tr>
+                        <td class="p-8 text-center text-red-500 font-bold">
+                            No se pudieron cargar los datos: <br> 
+                            <span class="text-sm font-normal">${error.message}</span>
+                        </td>
+                    </tr>`;
+            }
+        }
+
+        function renderizarTabla(datos) {
+            const thead = document.getElementById('tabla-cabecera');
+            const tbody = document.getElementById('tabla-cuerpo');
+            
+            thead.innerHTML = "";
+            tbody.innerHTML = "";
+
+            if (!datos || datos.length === 0) {
+                tbody.innerHTML = `<tr><td class="p-8 text-center text-gray-500">No hay registros disponibles.</td></tr>`;
+                return;
+            }
+
+            const columnas = Object.keys(datos[0]);
+            
+            // 1. Crear encabezados dinámicamente (Omitiendo datos sensibles como contraseñas)
+            let encabezadosHTML = '<tr class="bg-gray-850 border-b border-gray-800 text-xs text-gray-400 uppercase tracking-wider">';
+            columnas.forEach(col => {
+                if(col !== 'contrasena' && col !== 'password_hash') {
+                    const nombreColumna = col.replace(/_/g, ' ');
+                    encabezadosHTML += `<th class="p-4 font-semibold">${nombreColumna}</th>`;
+                }
+            });
+            if (puedeEscribir()) {
+                encabezadosHTML += `<th class="p-4 text-right font-semibold">Acciones</th>`;
+            }
+            encabezadosHTML += `</tr>`;
+            thead.innerHTML = encabezadosHTML;
+
+            // 2. Llenar filas dinámicamente
+            datos.forEach((row, index) => {
+                const llaveId = `id_${endpointActual.slice(0, -1)}`;
+                const idRegistro = row[llaveId];
+                let filaHTML = `<tr class="hover:bg-gray-800/50 transition-colors">`;
+                
+                columnas.forEach(col => {
+                    if(col !== 'contrasena' && col !== 'password_hash') {
+                        let valor = row[col] !== null ? row[col] : '<span class="text-gray-600">N/A</span>';
+                        
+                        if (col === 'imagen' && row[col]) {
+                            // Agregamos la cabecera Base64 para que el navegador sepa que es una imagen
+                            valor = `<img src="data:image/jpeg;base64,${row[col]}" class="w-12 h-12 object-cover rounded shadow border border-gray-700" alt="Foto">`;
+                        } else if (col === 'imagen' && !row[col]) {
+                            valor = '<span class="text-gray-600 text-xs">Sin foto</span>';
+                        }
+                        
+                        else if (typeof row[col] === 'boolean' || col === 'esta_empenado') {
+                            valor = (row[col] == 1 || row[col] === true) 
+                                ? '<span class="text-amber-400 font-bold">Sí</span>' 
+                                : '<span class="text-gray-400">No</span>';
+                        }
+                        
+                        else if (col === 'monto_prestamo') {
+                            valor = `<span class="text-emerald-400">$${parseFloat(row[col]).toFixed(2)}</span>`;
+                        }
+
+                        filaHTML += `<td class="p-4 text-gray-300 whitespace-nowrap">${valor}</td>`;
+                    }
+                });
+
+                if (puedeEscribir()) {
+                    const botonEliminar = puedeEliminarFila(row)
+                        ? `<button onclick="eliminarRegistro('${idRegistro}')" class="text-rose-400 hover:text-rose-300 text-xs bg-rose-950 px-3 py-1.5 rounded border border-rose-800 cursor-pointer">Eliminar</button>`
+                        : '';
+                    filaHTML += `
+                        <td class="p-4 text-right space-x-2 whitespace-nowrap">
+                            <button onclick="abrirModal('editar', ${index})" class="text-blue-400 hover:text-blue-300 text-xs bg-blue-950 px-3 py-1.5 rounded border border-blue-800 cursor-pointer">Editar</button>
+                            ${botonEliminar}
+                        </td>`;
+                }
+                filaHTML += `</tr>`;
+                
+                tbody.innerHTML += filaHTML;
+            });
+        }
+
+        function cambiarSeccion(nombreSeccion, endpoint, elementoBtn) {
+            if (!puedeVerSeccion(endpoint)) {
+                return;
+            }
+
+            seccionActual = nombreSeccion;
+            endpointActual = endpoint;
+            document.getElementById('titulo-seccion').innerText = "Gestión de " + nombreSeccion;
+            document.getElementById('input-buscar').placeholder = "Filtrar " + nombreSeccion + "...";
+            document.getElementById('input-buscar').value = "";
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-amber-500', 'text-gray-950', 'font-semibold');
+                btn.classList.add('text-gray-300', 'hover:bg-gray-800', 'hover:text-white');
+            });
+            elementoBtn.classList.add('bg-amber-500', 'text-gray-950', 'font-semibold');
+            elementoBtn.classList.remove('text-gray-300', 'hover:bg-gray-800', 'hover:text-white');
+
+            actualizarPermisos();
+            cargarDatosDesdeServidor();
+        }
+
+        // ==========================================
+        // FUNCIONES DEL MODAL DINÁMICO
+        // ==========================================
+
+        // Función auxiliar para crear el HTML de los inputs rápidamente
+        function crearCampo(id, etiqueta, tipo = "text") {
+            return `
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">${etiqueta}</label>
+                    <input type="${tipo}" id="inp-${id}" name="${id}" class="w-full bg-gray-800 border border-gray-700 px-3 py-2 rounded-lg text-sm text-white focus:outline-none focus:border-amber-400" autocomplete="off">
+                </div>
+            `;
+        }
+
+        function escaparHtml(valor) {
+            return String(valor ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        async function abrirModal(modo, index = null) {
+            if (!puedeEscribir()) {
+                alert('Tu rol solo tiene permisos de lectura en esta sección.');
+                return;
+            }
+
+            const modal = document.getElementById('modal-form');
+            const titulo = document.getElementById('modal-titulo');
+            const contenedorInputs = document.getElementById('modal-inputs');
+            
+            contenedorInputs.innerHTML = "";
+            titulo.innerText = (modo === 'crear' ? "Crear nuevo registro en " : "Editar registro en ") + seccionActual;
+            indiceEdicionActual = index; // Guardamos el índice si es modo edición
+
+            let camposHTML = "";
+            let clientes = [];
+
+            if (seccionActual === 'productos') {
+                try {
+                    const response = await fetch('http://localhost:3000/api/clientes');
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'No se pudieron cargar los clientes');
+                    }
+                    clientes = Array.isArray(data) ? data : [];
+                } catch (error) {
+                    alert('No se pudo cargar la lista de clientes: ' + error.message);
+                    return;
+                }
+            }
+
+            // Generar los campos correspondientes a la tabla seleccionada
+            switch(seccionActual) {
+                case 'productos':
+                    camposHTML += `
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Cliente</label>
+                            <select id="inp-id_cliente" name="id_cliente" required class="w-full bg-gray-800 border border-gray-700 px-3 py-2 rounded-lg text-sm text-white focus:outline-none focus:border-amber-400">
+                                <option value="">Selecciona un cliente</option>
+                                ${clientes.map(cliente => `
+                                    <option value="${escaparHtml(cliente.id_cliente)}">
+                                        ${escaparHtml(`${cliente.nombre || ''} ${cliente.apellidos || ''}`.trim())}
+                                    </option>`).join('')}
+                            </select>
+                        </div>`;
+                    camposHTML += crearCampo('nombre_producto', 'Nombre del Producto', 'text');
+                    camposHTML += crearCampo('descripcion_articulo', 'Descripción', 'text');
+                    camposHTML += crearCampo('categoria', 'Categoría', 'text');
+                    camposHTML += crearCampo('monto_prestamo', 'Monto del Préstamo', 'number');
+                    if (modo === 'editar') {
+                        camposHTML += `
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">Estado del empeño</label>
+                                <select id="inp-esta_empenado" name="esta_empenado" class="w-full bg-gray-800 border border-gray-700 px-3 py-2 rounded-lg text-sm text-white focus:outline-none focus:border-amber-400">
+                                    <option value="1">Sí, está empeñado</option>
+                                    <option value="0">No, está disponible</option>
+                                </select>
+                            </div>`;
+                    }
+                    camposHTML += `
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Imagen (Opcional)</label>
+                            <input type="file" id="inp-imagen" accept="image/*" class="w-full bg-gray-800 border border-gray-700 px-3 py-2 rounded-lg text-sm text-white focus:outline-none focus:border-amber-400">
+                        </div>`;
+                    break;
+                case 'clientes':
+                    camposHTML += crearCampo('nombre', 'Nombre', 'text');
+                    camposHTML += crearCampo('apellidos', 'Apellidos', 'text');
+                    camposHTML += crearCampo('telefono', 'Teléfono', 'text');
+                    camposHTML += crearCampo('direccion', 'Dirección', 'text');
+                    break;
+                case 'usuarios':
+                    camposHTML += crearCampo('nombre', 'Nombre', 'text');
+                    camposHTML += crearCampo('correo', 'Correo', 'email');
+                    camposHTML += (modo === 'crear') ? crearCampo('contrasena', 'Contraseña', 'password') : '';
+                    camposHTML += `
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Rol</label>
+                            <select id="inp-rol" name="rol" class="w-full bg-gray-800 border border-gray-700 px-3 py-2 rounded-lg text-sm text-white focus:outline-none focus:border-amber-400">
+                                <option value="Auditor">Auditor</option>
+                                <option value="Capturista">Capturista</option>
+                                <option value="Administrador">Administrador</option>
+                            </select>
+                        </div>`;
+                    break;
+            }
+
+            contenedorInputs.innerHTML = camposHTML;
+
+            // Si es modo "Editar", llenamos los inputs con los datos de la fila seleccionada
+            if (modo === 'editar' && index !== null) {
+                const registroData = datosActuales[index];
+                Object.keys(registroData).forEach(key => {
+                    const input = document.getElementById('inp-' + key);
+                    if (input) {
+                        // Evitamos asignar valores a inputs de tipo archivo por seguridad del navegador
+                        if (input.type !== 'file') {
+                            input.value = key === 'esta_empenado'
+                                ? ((registroData[key] == 1 || registroData[key] === true) ? '1' : '0')
+                                : registroData[key];
+                        }
+                    }
+                });
+            }
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function cerrarModal() {
+            document.getElementById('modal-form').classList.remove('flex');
+            document.getElementById('modal-form').classList.add('hidden');
+        }
+
+        function leerImagenComoBase64(archivo) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(archivo);
+                reader.onload = () => {
+                    const base64String = reader.result.split(',')[1];
+                    resolve(base64String);
+                };
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        async function guardarDatosModal() {
+            if (!puedeEscribir()) {
+                alert('No tienes permisos para guardar cambios en esta sección.');
+                return;
+            }
+
+            let bodyData = {};
+            const contenedorInputs = document.getElementById('modal-inputs');
+            
+            // 1. Recoger todos los inputs regulares
+            const elementos = contenedorInputs.querySelectorAll('input:not([type="file"]), select');
+            elementos.forEach(el => {
+                if(el.value.trim() !== "") {
+                    // TiDB espera esta_empenado como número, no como booleano JSON.
+                    if (el.name === 'esta_empenado') {
+                        bodyData[el.name] = Number(el.value);
+                    } else {
+                        bodyData[el.name] = (el.type === 'number') ? Number(el.value) : el.value;
+                    }
+                }
+            });
+
+            // 2. Procesar la imagen si existe
+            const inputImagen = document.getElementById('inp-imagen');
+            if (inputImagen && inputImagen.files.length > 0) {
+                try {
+                    bodyData.imagen = await leerImagenComoBase64(inputImagen.files[0]);
+                } catch (error) {
+                    alert("Error al procesar la imagen.");
+                    return;
+                }
+            } else {
+                // Enviar cadena vacía para conservar la foto anterior
+                bodyData.imagen = ""; 
+            }
+
+            // 3. Determinar el método y URL
+            let metodo = indiceEdicionActual !== null ? 'PUT' : 'POST';
+            let urlFinal = `http://localhost:3000/api/${endpointActual}`;
+
+            if (metodo === 'PUT') {
+                const registroActual = datosActuales[indiceEdicionActual];
+                const llaveId = `id_${endpointActual.slice(0, -1)}`;
+                const idRegistro = registroActual[llaveId]; 
+
+                if (idRegistro === undefined) {
+                    console.error('No se encontró el ID del registro:', {
+                        endpoint: endpointActual,
+                        llaveId,
+                        registro: registroActual
+                    });
+                    alert(`No se encontró ${llaveId} para actualizar este registro.`);
+                    return;
+                }
+                
+                urlFinal += `/${idRegistro}`;
+                
+                // Inyectar el ID en el JSON para que viaje en el Body hacia TiDB
+                bodyData[llaveId] = idRegistro; 
+            }
+
+            console.group(`[${metodo}] Envío de datos`);
+            console.log('URL:', urlFinal);
+            console.log('Método:', metodo);
+            console.log('Datos:', bodyData);
+            console.log('JSON enviado:', JSON.stringify(bodyData));
+            console.groupEnd();
+
+            try {
+                const response = await fetch(urlFinal, {
+                    method: metodo,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bodyData)
+                });
+
+                if (response.ok) {
+                    cerrarModal();
+                    cargarDatosDesdeServidor();
+                } else {
+                    const errorJson = await response.json().catch(() => ({}));
+                    alert("Error en el servidor backend: " + (errorJson.error || response.statusText));
+                }
+            } catch (error) {
+                alert("Error de conexión al enviar los datos.");
+                console.error(error);
+            }
+        }
+
+        async function eliminarRegistro(id) {
+            if (!puedeEscribir()) {
+                alert('No tienes permisos para eliminar registros en esta sección.');
+                return;
+            }
+
+            const llaveId = `id_${endpointActual.slice(0, -1)}`;
+            const registro = datosActuales.find(row => String(row[llaveId]) === String(id));
+            if (registro && !puedeEliminarFila(registro)) {
+                alert('No puedes eliminar tu propio usuario ni otro administrador.');
+                return;
+            }
+
+            if (confirm("¿Estás seguro de eliminar el registro " + id + "?")) {
+                try {
+                    const response = await fetch(`http://localhost:3000/api/${endpointActual}/${id}`, { method: 'DELETE' });
+                    if(response.ok) {
+                        cargarDatosDesdeServidor();
+                    } else {
+                        const errorJson = await response.json().catch(() => ({}));
+                        alert("No se pudo eliminar el registro: " + (errorJson.error || response.statusText));
+                    }
+                } catch (error) {
+                    console.error("Error al eliminar", error);
+                }
+            }
+        }
+
+        async function crearRespaldoLocal() {
+            if (!esAdministrador()) {
+                alert('Solo el Admin puede crear respaldos.');
+                return;
+            }
+
+            try {
+                const secciones = ['productos', 'clientes', 'usuarios'];
+                const tablas = await Promise.all(
+                    secciones.map(async seccion => {
+                        const response = await fetch(`http://localhost:3000/api/${seccion}`);
+                        const data = await response.json();
+                        if (!response.ok) {
+                            throw new Error(data.error || `No se pudo respaldar ${seccion}`);
+                        }
+                        return [seccion, data];
+                    })
+                );
+
+                const valorSql = valor => {
+                    if (valor === null || valor === undefined) return 'NULL';
+                    if (typeof valor === 'number' && Number.isFinite(valor)) return String(valor);
+                    if (typeof valor === 'boolean') return valor ? '1' : '0';
+                    return `'${String(valor).replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
+                };
+
+                const lineas = [
+                    '-- Respaldo de Casa Empeño',
+                    `-- Creado: ${new Date().toISOString()}`,
+                    'SET NAMES utf8mb4;',
+                    ''
+                ];
+
+                tablas.forEach(([tabla, registros]) => {
+                    registros.forEach(registro => {
+                        const columnas = Object.keys(registro);
+                        const nombres = columnas.map(columna => `\`${columna}\``).join(', ');
+                        const valores = columnas.map(columna => valorSql(registro[columna])).join(', ');
+                        lineas.push(`INSERT INTO \`${tabla}\` (${nombres}) VALUES (${valores});`);
+                    });
+                    lineas.push('');
+                });
+
+                const archivo = new Blob([lineas.join('\n')], { type: 'application/sql' });
+                const enlace = document.createElement('a');
+                enlace.href = URL.createObjectURL(archivo);
+                enlace.download = `respaldo-casa-empeno-${new Date().toISOString().slice(0, 10)}.sql`;
+                enlace.click();
+                URL.revokeObjectURL(enlace.href);
+            } catch (error) {
+                console.error('Error al crear respaldo:', error);
+                alert('No se pudo crear el respaldo: ' + error.message);
+            }
+        }
+
+        function buscarEnTabla() {
+            const query = document.getElementById('input-buscar').value.toLowerCase();
+            const filtrados = datosActuales.filter(item => {
+                return Object.values(item).some(val => 
+                    String(val).toLowerCase().includes(query)
+                );
+            });
+            renderizarTabla(filtrados);
+        }
+
+        window.onload = function() {
+            const usuarioSesion = localStorage.getItem('usuarioSesion');
+            if (usuarioSesion) {
+                mostrarAplicacion(JSON.parse(usuarioSesion));
+            }
+        };
+    </script>
+</body>
+</html>

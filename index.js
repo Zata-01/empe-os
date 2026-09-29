@@ -1,8 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
+const sesiones = new Map();
+const seccionesPermitidas = new Set(['productos', 'clientes', 'usuarios']);
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -44,10 +47,44 @@ const fetchTiDB = async (endpointTiDB, method = 'GET', body = null) => {
     return json;
 };
 
-app.get('/api/:seccion', async (req, res) => {
+const normalizarRol = rol => String(rol || '').trim().toLowerCase();
+
+const autenticar = (req, res, next) => {
+    if (req.path === '/login') return next();
+
+    const token = req.get('Authorization')?.replace(/^Bearer\s+/i, '');
+    const usuario = token ? sesiones.get(token) : null;
+    if (!usuario) {
+        return res.status(401).json({ error: 'Sesión no válida o expirada' });
+    }
+
+    req.usuario = usuario;
+    next();
+};
+
+const autorizarSeccion = (req, res, next) => {
+    const seccion = req.params.seccion;
+    if (!seccionesPermitidas.has(seccion)) {
+        return res.status(404).json({ error: 'Endpoint no válido' });
+    }
+
+    const rol = normalizarRol(req.usuario.rol);
+    const esLectura = req.method === 'GET';
+    const puedeLeer = ['auditor', 'capturista', 'admin', 'administrador'].includes(rol);
+    const puedeModificar = ['capturista', 'admin', 'administrador'].includes(rol);
+
+    if ((esLectura && !puedeLeer) || (!esLectura && !puedeModificar)) {
+        return res.status(403).json({ error: 'No tienes permisos para esta operación' });
+    }
+
+    next();
+};
+
+app.use('/api', autenticar);
+
+app.get('/api/:seccion', autorizarSeccion, async (req, res) => {
     try {
         const tidbEndpoint = req.params.seccion;
-        if (!tidbEndpoint) return res.status(404).json({ error: 'Endpoint no válido' });
 
         const data = await fetchTiDB(`${tidbEndpoint}`);
         res.json(data.data.rows || []);
@@ -80,7 +117,15 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ error: 'Nombre o contraseña incorrectos' });
         }
 
+        const token = crypto.randomUUID();
+        sesiones.set(token, {
+            id_usuario: usuario.id_usuario,
+            nombre: usuario.nombre,
+            rol: usuario.rol
+        });
+
         res.json({
+            token,
             id_usuario: usuario.id_usuario,
             nombre: usuario.nombre,
             rol: usuario.rol
@@ -90,7 +135,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-app.post('/api/:seccion', async (req, res) => {
+app.post('/api/:seccion', autorizarSeccion, async (req, res) => {
     try {
         const tidbEndpoint = req.params.seccion;
         const data = await fetchTiDB(`${tidbEndpoint}`, 'POST', req.body);
@@ -100,7 +145,7 @@ app.post('/api/:seccion', async (req, res) => {
     }
 });
 
-app.put('/api/:seccion/:id', async (req, res) => {
+app.put('/api/:seccion/:id', autorizarSeccion, async (req, res) => {
     try {
         const tidbEndpoint = req.params.seccion;
         let idName = 'id_' + tidbEndpoint.slice(0, -1);
@@ -118,7 +163,7 @@ app.put('/api/:seccion/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/:seccion/:id', async (req, res) => {
+app.delete('/api/:seccion/:id', autorizarSeccion, async (req, res) => {
     try {
         const tidbEndpoint = req.params.seccion;
         let idName = 'id_' + tidbEndpoint.slice(0, -1);

@@ -122,36 +122,27 @@
         let datosActuales = [];
         let rolActual = null;
         let usuarioActual = null;
+        let tokenSesion = null;
 
         function esAdministrador() {
             return rolActual === 'Admin' || rolActual === 'Administrador';
         }
 
         function puedeEscribir() {
-            if (rolActual === 'Capturista') {
-                return endpointActual === 'productos' || endpointActual === 'clientes';
-            }
-            return esAdministrador() && endpointActual === 'usuarios';
+            return rolActual === 'Capturista' || esAdministrador();
         }
 
         function puedeVerSeccion(endpoint) {
-            return endpoint === 'productos' || endpoint === 'clientes' || (endpoint === 'usuarios' && esAdministrador());
+            return endpoint === 'productos' || endpoint === 'clientes' || endpoint === 'usuarios';
         }
 
         function puedeEliminarFila(row) {
-            if (!puedeEscribir()) return false;
-            if (endpointActual !== 'usuarios') return true;
-
-            const idFila = Number(row.id_usuario);
-            const idActual = Number(usuarioActual?.id_usuario);
-            const rolFila = String(row.rol || '').trim().toLowerCase();
-
-            return idFila !== idActual && rolFila !== 'admin' && rolFila !== 'administrador';
+            return puedeEscribir();
         }
 
         function actualizarPermisos() {
             document.getElementById('rol-usuario').textContent = `Rol: ${rolActual}`;
-            document.getElementById('nav-usuarios').classList.toggle('hidden', !esAdministrador());
+            document.getElementById('nav-usuarios').classList.remove('hidden');
             document.getElementById('btn-crear').classList.toggle('hidden', !puedeEscribir());
             document.getElementById('btn-respaldo').classList.toggle('hidden', !esAdministrador());
             renderizarTabla(datosActuales);
@@ -187,6 +178,7 @@
         function mostrarAplicacion(usuario) {
             usuarioActual = usuario;
             rolActual = usuario.rol;
+            tokenSesion = usuario.token;
             document.getElementById('usuario-nombre').textContent = usuario.nombre || 'Auditoria';
             document.getElementById('pantalla-login').classList.add('hidden');
             document.getElementById('app-content').classList.remove('hidden');
@@ -197,6 +189,7 @@
         function cerrarSesion() {
             localStorage.removeItem('usuarioSesion');
             rolActual = null;
+            tokenSesion = null;
             document.getElementById('app-content').classList.add('hidden');
             document.getElementById('pantalla-login').classList.remove('hidden');
             document.getElementById('login-contrasena').value = '';
@@ -205,9 +198,15 @@
         // ==========================================
         // FUNCIONES DE CARGA Y RENDERIZADO DE TABLA
         // ==========================================
+        function apiFetch(url, opciones = {}) {
+            const headers = new Headers(opciones.headers || {});
+            if (tokenSesion) headers.set('Authorization', `Bearer ${tokenSesion}`);
+            return fetch(url, { ...opciones, headers });
+        }
+
         async function cargarDatosDesdeServidor() {
             try {
-                const response = await fetch(`http://localhost:3000/api/${endpointActual}`);
+                const response = await apiFetch(`http://localhost:3000/api/${endpointActual}`);
                 const data = await response.json();
 
                 if (!response.ok) {
@@ -369,7 +368,7 @@
 
             if (seccionActual === 'productos') {
                 try {
-                    const response = await fetch('http://localhost:3000/api/clientes');
+                    const response = await apiFetch('http://localhost:3000/api/clientes');
                     const data = await response.json();
                     if (!response.ok) {
                         throw new Error(data.error || 'No se pudieron cargar los clientes');
@@ -424,7 +423,7 @@
                 case 'usuarios':
                     camposHTML += crearCampo('nombre', 'Nombre', 'text');
                     camposHTML += crearCampo('correo', 'Correo', 'email');
-                    camposHTML += (modo === 'crear') ? crearCampo('contrasena', 'Contraseña', 'password') : '';
+                    camposHTML += crearCampo('contrasena', 'Contraseña', 'password');
                     camposHTML += `
                         <div>
                             <label class="block text-xs text-gray-400 mb-1">Rol</label>
@@ -545,7 +544,7 @@
             console.groupEnd();
 
             try {
-                const response = await fetch(urlFinal, {
+                const response = await apiFetch(urlFinal, {
                     method: metodo,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(bodyData)
@@ -573,13 +572,13 @@
             const llaveId = `id_${endpointActual.slice(0, -1)}`;
             const registro = datosActuales.find(row => String(row[llaveId]) === String(id));
             if (registro && !puedeEliminarFila(registro)) {
-                alert('No puedes eliminar tu propio usuario ni otro administrador.');
+                alert('No tienes permisos para eliminar este registro.');
                 return;
             }
 
             if (confirm("¿Estás seguro de eliminar el registro " + id + "?")) {
                 try {
-                    const response = await fetch(`http://localhost:3000/api/${endpointActual}/${id}`, { method: 'DELETE' });
+                    const response = await apiFetch(`http://localhost:3000/api/${endpointActual}/${id}`, { method: 'DELETE' });
                     if(response.ok) {
                         cargarDatosDesdeServidor();
                     } else {
@@ -602,7 +601,7 @@
                 const secciones = ['productos', 'clientes', 'usuarios'];
                 const tablas = await Promise.all(
                     secciones.map(async seccion => {
-                        const response = await fetch(`http://localhost:3000/api/${seccion}`);
+                        const response = await apiFetch(`http://localhost:3000/api/${seccion}`);
                         const data = await response.json();
                         if (!response.ok) {
                             throw new Error(data.error || `No se pudo respaldar ${seccion}`);
@@ -660,7 +659,9 @@
         window.onload = function() {
             const usuarioSesion = localStorage.getItem('usuarioSesion');
             if (usuarioSesion) {
-                mostrarAplicacion(JSON.parse(usuarioSesion));
+                const sesion = JSON.parse(usuarioSesion);
+                if (sesion.token) mostrarAplicacion(sesion);
+                else localStorage.removeItem('usuarioSesion');
             }
         };
     </script>

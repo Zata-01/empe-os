@@ -154,7 +154,7 @@
             error.classList.add('hidden');
 
             try {
-                const response = await fetch('http://localhost:3000/api/login', {
+                const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -206,7 +206,7 @@
 
         async function cargarDatosDesdeServidor() {
             try {
-                const response = await apiFetch(`http://localhost:3000/api/${endpointActual}`);
+                const response = await apiFetch(`/api/${endpointActual}`);
                 const data = await response.json();
 
                 if (!response.ok) {
@@ -368,7 +368,7 @@
 
             if (seccionActual === 'productos') {
                 try {
-                    const response = await apiFetch('http://localhost:3000/api/clientes');
+                    const response = await apiFetch('/api/clientes');
                     const data = await response.json();
                     if (!response.ok) {
                         throw new Error(data.error || 'No se pudieron cargar los clientes');
@@ -513,7 +513,7 @@
 
             // 3. Determinar el método y URL
             let metodo = indiceEdicionActual !== null ? 'PUT' : 'POST';
-            let urlFinal = `http://localhost:3000/api/${endpointActual}`;
+            let urlFinal = `/api/${endpointActual}`;
 
             if (metodo === 'PUT') {
                 const registroActual = datosActuales[indiceEdicionActual];
@@ -578,7 +578,7 @@
 
             if (confirm("¿Estás seguro de eliminar el registro " + id + "?")) {
                 try {
-                    const response = await apiFetch(`http://localhost:3000/api/${endpointActual}/${id}`, { method: 'DELETE' });
+                    const response = await apiFetch(`/api/${endpointActual}/${id}`, { method: 'DELETE' });
                     if(response.ok) {
                         cargarDatosDesdeServidor();
                     } else {
@@ -601,7 +601,7 @@
                 const secciones = ['productos', 'clientes', 'usuarios'];
                 const tablas = await Promise.all(
                     secciones.map(async seccion => {
-                        const response = await apiFetch(`http://localhost:3000/api/${seccion}`);
+                        const response = await apiFetch(`/api/${seccion}`);
                         const data = await response.json();
                         if (!response.ok) {
                             throw new Error(data.error || `No se pudo respaldar ${seccion}`);

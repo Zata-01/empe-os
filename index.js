@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -9,7 +10,7 @@ const seccionesPermitidas = new Set(['productos', 'clientes', 'usuarios']);
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 const getTiDBAuthHeader = () => {
     const credentials = `${process.env.TIDB_PUBLIC_KEY}:${process.env.TIDB_PRIVATE_KEY}`;
@@ -181,6 +182,11 @@ app.delete('/api/:seccion/:id', autorizarSeccion, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`App corriendo en http://localhost:${PORT}`);
-});
+
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`App corriendo en http://localhost:${PORT}`);
+    });
+}
+
+module.exports = app;
